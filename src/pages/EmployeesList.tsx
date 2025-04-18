@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { Search, PlusCircle, Loader2, Pencil, Trash } from "lucide-react";
+import { Search, PlusCircle, Loader2, Pencil, Trash, Code } from "lucide-react";
 import { getEmployees, deleteEmployee } from "../services/employeeService";
 import { Employee } from "../types/employee";
 import EmployeeCard from "../components/EmployeeCard";
@@ -11,13 +11,13 @@ import Header from "../components/Header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
-import { Badge } from "@/components/ui/badge"; // Importa el Badge
-import { Code } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from "@/components/ui/card";
 
 const EmployeesList = () => {
@@ -26,6 +26,7 @@ const EmployeesList = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
+  const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
   const [isGridView, setIsGridView] = useState(true);
   const { toast } = useToast();
 
@@ -41,7 +42,6 @@ const EmployeesList = () => {
         setIsLoading(false);
       }
     };
-
     fetchEmployees();
   }, []);
 
@@ -59,28 +59,34 @@ const EmployeesList = () => {
     }
   }, [searchTerm, employees]);
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm("¿Estás seguro de que deseas eliminar este empleado?")) {
-      setIsDeleting(id);
-      try {
-        await deleteEmployee(id);
-        setEmployees((prev) => prev.filter((employee) => employee.id !== id));
+  const confirmDelete = (employee: Employee) => {
+    setEmployeeToDelete(employee);
+  };
 
-        toast({
-          title: "Empleado eliminado",
-          description: "El empleado ha sido eliminado con éxito.",
-        });
-      } catch (error) {
-        console.error("Error al eliminar empleado:", error);
-        toast({
-          title: "Error",
-          description: "No se pudo eliminar el empleado. Por favor, intenta nuevamente.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsDeleting(null);
-      }
+  const handleConfirmDelete = async () => {
+    if (!employeeToDelete) return;
+    setIsDeleting(employeeToDelete.id);
+    try {
+      await deleteEmployee(employeeToDelete.id);
+      setEmployees((prev) => prev.filter((e) => e.id !== employeeToDelete.id));
+      toast({
+        title: "Empleado eliminado",
+        description: "El empleado ha sido eliminado con éxito.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el empleado. Intenta nuevamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(null);
+      setEmployeeToDelete(null);
     }
+  };
+
+  const handleCancelDelete = () => {
+    setEmployeeToDelete(null);
   };
 
   return (
@@ -162,7 +168,7 @@ const EmployeesList = () => {
                 <EmployeeCard
                   key={employee.id}
                   employee={employee}
-                  onDelete={handleDelete}
+                  onDelete={() => confirmDelete(employee)}
                 />
               ))}
             </AnimatePresence>
@@ -195,8 +201,6 @@ const EmployeesList = () => {
                         <td className="px-6 py-4">
                           {format(new Date(employee.birthDate), "PPP", { locale: es })}
                         </td>
-
-                        {/* Columna "Rol" */}
                         <td className="px-6 py-4 hidden md:table-cell">
                           {employee.isDeveloper ? (
                             <Badge variant="secondary" className="flex items-center gap-1 w-fit">
@@ -207,23 +211,19 @@ const EmployeesList = () => {
                             <span className="text-sm text-muted-foreground">No aplica</span>
                           )}
                         </td>
-
                         <td className="px-6 py-4 flex gap-2">
                           <Button variant="outline" size="sm" asChild>
-                            <Link to={`/edit-employee/${employee.id}`} className="flex items-center">
+                            <Link to={`/edit-employee/${employee.id}`}>
                               <Pencil className="h-4 w-4" />
-                
                             </Link>
                           </Button>
-
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleDelete(employee.id)}
+                            onClick={() => confirmDelete(employee)}
                             className="text-destructive hover:text-destructive-foreground hover:bg-destructive"
                           >
                             <Trash className="h-4 w-4" />
-                            
                           </Button>
                         </td>
                       </tr>
@@ -233,6 +233,32 @@ const EmployeesList = () => {
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {/* Alerta de eliminación */}
+        {employeeToDelete && (
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
+            <Card className="w-[90%] max-w-md shadow-lg border">
+              <CardHeader>
+                <CardTitle>¿Eliminar empleado?</CardTitle>
+                <CardDescription>
+                  Estás a punto de eliminar a <strong>{employeeToDelete.fullName}</strong>. Esta acción no se puede deshacer.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex justify-end gap-2">
+                <Button variant="ghost" onClick={handleCancelDelete}>
+                  Cancelar
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleConfirmDelete}
+                  disabled={isDeleting === employeeToDelete.id}
+                >
+                  {isDeleting === employeeToDelete.id ? "Eliminando..." : "Eliminar"}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         )}
       </main>
     </div>
